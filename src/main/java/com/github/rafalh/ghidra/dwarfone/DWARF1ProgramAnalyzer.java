@@ -50,7 +50,8 @@ public class DWARF1ProgramAnalyzer {
                 log.appendMsg("No DWARF1 debug section found.");
                 return false;
             }
-            processDebugSection(debug);
+            var line = sectionProvider.getSectionAsByteProvider(DWARF1SectionNames.LINE, monitor);
+            processDebugSection(debug, line);
             return true;
         } catch (IOException e) {
             log.appendException(e);
@@ -62,7 +63,7 @@ public class DWARF1ProgramAnalyzer {
         return !program.getLanguage().isBigEndian();
     }
 
-    private void processDebugSection(ByteProvider bp) throws IOException {
+    private void processDebugSection(ByteProvider bp, ByteProvider lineBp) throws IOException {
         BinaryReader br = new BinaryReader(bp, isLittleEndian());
         
         Stack<DebugInfoEntry> parentStack = new Stack<>(); 
@@ -142,8 +143,26 @@ public class DWARF1ProgramAnalyzer {
             processTopLevelDebugInfoEntry(die); 
         }
 
-        dwarfVariableImporter.processDeferredVariables();   
+        dwarfVariableImporter.processDeferredVariables();
 
+        if (lineBp != null) {
+            processLineSection(topLevelDies, lineBp);
+        }
+    }
+
+    private void processLineSection(List<DebugInfoEntry> topLevelDies, ByteProvider lineBp) {
+        monitor.setMessage("Processing DWARF1 .line section...");
+        var lineImporter = new DWARF1LineInfoImporter(dwarfProgram, log, monitor);
+        for (DebugInfoEntry die : topLevelDies) {
+            if (die.getTag() == Tag.COMPILE_UNIT) {
+                try {
+                    lineImporter.processCompileUnit(die, lineBp);
+                } catch (IOException e) {
+                    log.appendMsg("[DWARF1 .line] Error processing compile unit at 0x" +
+                            Long.toHexString(die.getRef()) + ": " + e.getMessage());
+                }
+            }
+        }
     }
     /**
      * Processes a DebugInfoEntry, dispatching to appropriate importers or
