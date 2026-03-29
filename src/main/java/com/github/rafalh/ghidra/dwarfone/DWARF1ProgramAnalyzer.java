@@ -164,6 +164,7 @@ public class DWARF1ProgramAnalyzer {
             }
         }
     }
+
     /**
      * Processes a DebugInfoEntry, dispatching to appropriate importers or
      * recursively processing its children if it's a structural tag like

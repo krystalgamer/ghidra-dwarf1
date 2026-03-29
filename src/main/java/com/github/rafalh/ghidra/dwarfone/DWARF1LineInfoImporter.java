@@ -2,11 +2,8 @@ package com.github.rafalh.ghidra.dwarfone;
 
 import java.io.IOException;
 
-import com.github.rafalh.ghidra.dwarfone.model.AddrAttributeValue;
 import com.github.rafalh.ghidra.dwarfone.model.AttributeName;
-import com.github.rafalh.ghidra.dwarfone.model.ConstAttributeValue;
 import com.github.rafalh.ghidra.dwarfone.model.DebugInfoEntry;
-import com.github.rafalh.ghidra.dwarfone.model.RefAttributeValue;
 import com.github.rafalh.ghidra.dwarfone.model.StringAttributeValue;
 
 import ghidra.app.util.bin.BinaryReader;
@@ -57,30 +54,16 @@ public class DWARF1LineInfoImporter {
      * then parses the corresponding block in the .line section.
      */
     void processCompileUnit(DebugInfoEntry cuDie, ByteProvider lineBp) throws IOException {
-        // AT_stmt_list can be encoded as DATA4 (Const), REF, or ADDR depending on compiler
-        long blockOffset;
-        var asConst = cuDie.<ConstAttributeValue>getAttribute(AttributeName.STMT_LIST);
-        if (asConst.isPresent()) {
-            blockOffset = asConst.get().get().longValue();
-        } else {
-            var asRef = cuDie.<RefAttributeValue>getAttribute(AttributeName.STMT_LIST);
-            if (asRef.isPresent()) {
-                blockOffset = asRef.get().get();
-            } else {
-                var asAddr = cuDie.<AddrAttributeValue>getAttribute(AttributeName.STMT_LIST);
-                if (asAddr.isPresent()) {
-                    blockOffset = asAddr.get().get();
-                } else {
-                    return;
-                }
-            }
+        var blockOffset = DWARF1ImportUtils.extractNumericAttribute(cuDie, AttributeName.STMT_LIST);
+        if (blockOffset.isEmpty()) {
+            return;
         }
 
         String cuName = cuDie.<StringAttributeValue>getAttribute(AttributeName.NAME)
                 .map(StringAttributeValue::get)
                 .orElse(null);
 
-        parseLineBlock(lineBp, blockOffset, cuName);
+        parseLineBlock(lineBp, blockOffset.get(), cuName);
     }
 
     private void parseLineBlock(ByteProvider bp, long blockOffset, String cuName) throws IOException {
